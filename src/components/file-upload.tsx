@@ -1,15 +1,19 @@
 import { useState, useRef, useCallback, type FC, type DragEvent, type ChangeEvent } from "react";
 import { Upload, X } from "lucide-react";
 
+import { type GenerationMode } from "../pages/home";
+
 interface FileUploadProps {
     onImageSelect: (dataUrl: string) => void;
     particleColor: string;
     onColorChange: (color: string) => void;
+    mode: GenerationMode;
+    onModeChange: (mode: GenerationMode) => void;
 }
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png"];
 
-const FileUpload: FC<FileUploadProps> = ({ onImageSelect, particleColor, onColorChange }) => {
+const FileUpload: FC<FileUploadProps> = ({ onImageSelect, particleColor, onColorChange, mode, onModeChange }) => {
     const [preview, setPreview] = useState<string | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [fileName, setFileName] = useState<string>("");
@@ -142,10 +146,26 @@ const FileUpload: FC<FileUploadProps> = ({ onImageSelect, particleColor, onColor
             {/* Color picker & actions */}
             {preview && (
                 <div className="rounded-[24px] border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-surface p-6 space-y-5">
+                    {/* Mode selector */}
+                    <div className="flex bg-gray-100 dark:bg-dark-bg p-1 rounded-full w-full">
+                        <button
+                            onClick={() => onModeChange("particles")}
+                            className={`flex-1 py-2 text-sm font-medium rounded-full transition-colors cursor-pointer ${mode === "particles" ? "bg-white dark:bg-dark-surface shadow-sm text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"}`}
+                        >
+                            Particles
+                        </button>
+                        <button
+                            onClick={() => onModeChange("ascii")}
+                            className={`flex-1 py-2 text-sm font-medium rounded-full transition-colors cursor-pointer ${mode === "ascii" ? "bg-white dark:bg-dark-surface shadow-sm text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"}`}
+                        >
+                            ASCII Art
+                        </button>
+                    </div>
+
                     {/* Color picker */}
                     <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Particle color
+                            {mode === "particles" ? "Particle color" : "Text color"}
                         </span>
                         <div className="flex items-center gap-3">
                             <span className="text-xs font-mono text-gray-400 dark:text-gray-500 uppercase">
@@ -165,7 +185,7 @@ const FileUpload: FC<FileUploadProps> = ({ onImageSelect, particleColor, onColor
                         onClick={handleGenerate}
                         className="w-full py-3.5 rounded-full text-sm font-semibold bg-lavender-dark hover:bg-lavender text-white hover:text-gray-900 transition-all cursor-pointer"
                     >
-                        Generate Particles ✨
+                        {mode === "particles" ? "Generate Particles ✨" : "Generate ASCII ✨"}
                     </button>
                 </div>
             )}

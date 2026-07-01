@@ -1,16 +1,9 @@
 import { useRef, useEffect, useState, type FC } from "react";
 
-interface ParticleLine {
-    x: number;
-    y: number;
-    targetX: number;
-    targetY: number;
-    vx: number;
-    vy: number;
-    length: number;
-    baseAlpha: number;
-    currentAlpha: number;
-    delay: number;
+interface AsciiPortraitProps {
+    imageSrc: string;
+    canvasSize?: number;
+    particleColor?: string;
 }
 
 interface MouseState {
@@ -19,10 +12,15 @@ interface MouseState {
     active: boolean;
 }
 
-interface ParticlePortraitProps {
-    imageSrc: string;
-    canvasSize?: number;
-    particleColor?: string;
+interface AsciiParticle {
+    x: number;
+    y: number;
+    baseX: number;
+    baseY: number;
+    vx: number;
+    vy: number;
+    char: string;
+    alpha: number;
 }
 
 /**
@@ -37,16 +35,15 @@ const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
     };
 };
 
-const ParticlePortrait: FC<ParticlePortraitProps> = ({
+const AsciiPortrait: FC<AsciiPortraitProps> = ({
     imageSrc,
     canvasSize,
     particleColor = "#64ffda",
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const mouseRef = useRef<MouseState>({ x: -1000, y: -1000, active: false });
-    const linesRef = useRef<ParticleLine[]>([]);
+    const particlesRef = useRef<AsciiParticle[]>([]);
     const imageLoadedRef = useRef<boolean>(false);
-    const startTimeRef = useRef<number | null>(null);
     const colorRef = useRef(particleColor);
     const [size, setSize] = useState<number>(canvasSize ?? 500);
 
@@ -86,15 +83,18 @@ const ParticlePortrait: FC<ParticlePortraitProps> = ({
 
         const canvasWidth = size;
         const canvasHeight = size;
-        canvas.width = canvasWidth;
-        canvas.height = canvasHeight;
+        
+        // High Definition rendering
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = canvasWidth * dpr;
+        canvas.height = canvasHeight * dpr;
+        
+        ctx.scale(dpr, dpr);
 
         let animationId: number;
 
-        // Reset state for new image
-        linesRef.current = [];
+        particlesRef.current = [];
         imageLoadedRef.current = false;
-        startTimeRef.current = null;
 
         const img = new Image();
         img.crossOrigin = "Anonymous";
@@ -105,6 +105,7 @@ const ParticlePortrait: FC<ParticlePortraitProps> = ({
             const offCtx = offscreen.getContext("2d");
             if (!offCtx) return;
 
+            // Use the same width/height for image processing
             offscreen.width = canvasWidth;
             offscreen.height = canvasHeight;
 
@@ -125,13 +126,14 @@ const ParticlePortrait: FC<ParticlePortraitProps> = ({
             offCtx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
             const imageData = offCtx.getImageData(0, 0, canvasWidth, canvasHeight);
             const pixels = imageData.data;
+            
+            const fontSize = size <= 280 ? 3 : 4; // smaller font size for higher definition
+            const asciiChars = "@%#*+=-:. ";
+            
+            const particles: AsciiParticle[] = [];
 
-            const lines: ParticleLine[] = [];
-            const rowGap = size <= 280 ? 3 : 4;
-
-            for (let y = 0; y < canvasHeight; y += rowGap) {
-                let x = 0;
-                while (x < canvasWidth) {
+            for (let y = 0; y < canvasHeight; y += fontSize) {
+                for (let x = 0; x < canvasWidth; x += fontSize) {
                     const i = (y * canvasWidth + x) * 4;
                     const a = pixels[i + 3];
 
@@ -139,38 +141,27 @@ const ParticlePortrait: FC<ParticlePortraitProps> = ({
                         const r = pixels[i];
                         const g = pixels[i + 1];
                         const b = pixels[i + 2];
-                        const brightness = (r + g + b) / (3 * 255);
+                        const brightness = (r + g + b) / 3;
 
-                        const lineLength = Math.floor(
-                            2 + brightness * (size <= 280 ? 5 : 8)
-                        );
+                        const charIndex = Math.floor((brightness / 255) * (asciiChars.length - 1));
+                        const char = asciiChars[charIndex];
 
-                        const scatterX = (Math.random() - 0.5) * 300;
-                        const scatterY = (Math.random() - 0.5) * 300;
-
-                        lines.push({
-                            x: x + scatterX,
-                            y: y + scatterY,
-                            targetX: x,
-                            targetY: y,
+                        particles.push({
+                            x: x + fontSize/2,
+                            y: y + fontSize/2,
+                            baseX: x + fontSize/2,
+                            baseY: y + fontSize/2,
                             vx: 0,
                             vy: 0,
-                            length: lineLength,
-                            baseAlpha: 0.5 + brightness * 0.5,
-                            currentAlpha: 0,
-                            delay: Math.random() * 0.3,
+                            char: char,
+                            alpha: 1.0 - (brightness / 255) * 0.5,
                         });
-
-                        x += lineLength + 2;
-                    } else {
-                        x += 3;
                     }
                 }
             }
 
-            linesRef.current = lines;
+            particlesRef.current = particles;
             imageLoadedRef.current = true;
-            startTimeRef.current = performance.now();
         };
 
         const draw = (): void => {
@@ -180,55 +171,46 @@ const ParticlePortrait: FC<ParticlePortraitProps> = ({
 
             if (!imageLoadedRef.current) return;
 
-            const lines = linesRef.current;
+            const particles = particlesRef.current;
             const mouse = mouseRef.current;
-            const elapsed = (performance.now() - (startTimeRef.current ?? 0)) / 1000;
             const { r, g, b } = hexToRgb(colorRef.current);
+            
+            const fontSize = size <= 280 ? 3 : 4;
+            ctx.font = `bold ${fontSize}px monospace`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
 
-            lines.forEach((p: ParticleLine) => {
-                const particleTime = elapsed - p.delay;
-
-                if (particleTime < 0) return;
-
-                const fadeProgress = Math.min(particleTime / 1.5, 1);
-                const easedFade = 1 - Math.pow(1 - fadeProgress, 2);
-                p.currentAlpha = p.baseAlpha * easedFade;
-
-                const moveProgress = Math.min(particleTime / 2.5, 1);
-                const easedMove = 1 - Math.pow(1 - moveProgress, 3);
-
+            particles.forEach((p) => {
+                // Mouse interaction
                 if (mouse.active) {
                     const dx = p.x - mouse.x;
                     const dy = p.y - mouse.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
-                    const maxDist = 60;
+                    const maxDist = 50;
 
                     if (dist < maxDist && dist > 0) {
-                        const force = (1 - dist / maxDist) * 2;
-                        p.vx += (dx / dist) * force;
-                        p.vy += (dy / dist) * force;
+                        const force = (maxDist - dist) / maxDist;
+                        const angle = Math.atan2(dy, dx);
+                        
+                        // Push outward from cursor
+                        p.vx += Math.cos(angle) * force * 2;
+                        p.vy += Math.sin(angle) * force * 2;
                     }
                 }
 
-                const dx = p.targetX - p.x;
-                const dy = p.targetY - p.y;
+                // Spring back to base position
+                p.vx += (p.baseX - p.x) * 0.1;
+                p.vy += (p.baseY - p.y) * 0.1;
 
-                const pullStrength = 0.01 + easedMove * 0.07;
-                p.vx += dx * pullStrength;
-                p.vy += dy * pullStrength;
-
-                p.vx *= 0.92;
-                p.vy *= 0.92;
+                // Friction
+                p.vx *= 0.85;
+                p.vy *= 0.85;
 
                 p.x += p.vx;
                 p.y += p.vy;
 
-                ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${p.currentAlpha})`;
-                ctx.lineWidth = size <= 280 ? 1 : 1.2;
-                ctx.beginPath();
-                ctx.moveTo(p.x, p.y);
-                ctx.lineTo(p.x + p.length, p.y);
-                ctx.stroke();
+                ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${p.alpha})`;
+                ctx.fillText(p.char, p.x, p.y);
             });
         };
 
@@ -253,7 +235,7 @@ const ParticlePortrait: FC<ParticlePortraitProps> = ({
 
         canvas.addEventListener("mousemove", handleMouseMove);
         canvas.addEventListener("mouseleave", handleLeave);
-        canvas.addEventListener("touchmove", handleTouchMove);
+        canvas.addEventListener("touchmove", handleTouchMove, { passive: false });
         canvas.addEventListener("touchend", handleLeave);
 
         draw();
@@ -280,4 +262,4 @@ const ParticlePortrait: FC<ParticlePortraitProps> = ({
     );
 };
 
-export default ParticlePortrait;
+export default AsciiPortrait;

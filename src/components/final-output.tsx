@@ -1,15 +1,18 @@
 import { useRef, type FC } from "react";
 import { ArrowLeft, Download, Palette } from "lucide-react";
 import ParticlePortrait from "./particles";
+import AsciiPortrait from "./ascii";
+import { type GenerationMode } from "../pages/home";
 
 interface FinalOutputProps {
     imageSrc: string;
     particleColor: string;
     onColorChange: (color: string) => void;
     onBack: () => void;
+    mode: GenerationMode;
 }
 
-const FinalOutput: FC<FinalOutputProps> = ({ imageSrc, particleColor, onColorChange, onBack }) => {
+const FinalOutput: FC<FinalOutputProps> = ({ imageSrc, particleColor, onColorChange, onBack, mode }) => {
     const wrapperRef = useRef<HTMLDivElement>(null);
 
     const handleDownload = (): void => {
@@ -29,12 +32,16 @@ const FinalOutput: FC<FinalOutputProps> = ({ imageSrc, particleColor, onColorCha
                 ref={wrapperRef}
                 className="rounded-[32px] overflow-hidden bg-dark-bg ring-1 ring-dark-border"
             >
-                <ParticlePortrait imageSrc={imageSrc} particleColor={particleColor} />
+                {mode === "particles" ? (
+                    <ParticlePortrait imageSrc={imageSrc} particleColor={particleColor} />
+                ) : (
+                    <AsciiPortrait imageSrc={imageSrc} particleColor={particleColor} />
+                )}
             </div>
 
             {/* Hint */}
-            <p className="text-xs text-gray-400 dark:text-gray-500 text-center">
-                Hover or touch the canvas to interact with particles
+            <p className="text-xs text-gray-400 dark:text-gray-500 text-center min-h-[16px]">
+                Hover or touch the canvas to interact with the art
             </p>
 
             {/* Controls card */}
@@ -43,7 +50,7 @@ const FinalOutput: FC<FinalOutputProps> = ({ imageSrc, particleColor, onColorCha
                 <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                         <Palette size={16} />
-                        <span className="text-sm font-medium">Particle color</span>
+                        <span className="text-sm font-medium">{mode === "particles" ? "Particle color" : "Text color"}</span>
                     </div>
                     <div className="flex items-center gap-3">
                         <span className="text-xs font-mono text-gray-400 dark:text-gray-500 uppercase">
